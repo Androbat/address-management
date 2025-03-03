@@ -1,56 +1,31 @@
-import { pipe } from "fp-ts/lib/function";
-import { Collection, ObjectId } from "mongodb";
-import TaskEither from 'fp-ts/TaskEither';
-import { errorRespositoryResponse } from "../common/helpers";
+import {  BaseEntity } from "../contracts/baseEntity";
+import { Collection, ObjectId, WithId } from 'mongodb';
 
+// Following open close priciples:
+// * Open for extention
+// * Closed for modification
+export abstract class BaseRepository<T extends BaseEntity>  {
+    private collection: Collection<T>;
 
-// TaskEither is lazy and is optimised to handle async operations.
-// Therefore, there's no need to us Async in the inner functions.
-// In other situation, will need to use async/await to handle database operation.
-
-export function baseRepository<T extends Document>(collection: Collection<T>) {
-    const create = (data: T) => {
-        return pipe(
-            TaskEither.tryCatch(() => collection.insertOne(data as any),
-            (error) => errorRespositoryResponse(error))
-        ),
-        TaskEither.chainNullableK((doc: T) => doc || null)
+    constructor(_collection: Collection<T>){
+        this.collection = _collection;
     }
 
-    const findOneItem = (id: ObjectId) => {
-        return pipe(
-            TaskEither.tryCatch(
-                () => collection.findOne({ _id: new Object(id) }),
-                (error) => errorRespositoryResponse(error))
-        )
+    async create(item: T): Promise<T> {
+        const result = await this.collection.insertOne(item as any);
+        return {...item, _id: result.insertedId }
     }
 
-    // Take special importance
-    const findItems = (data: T) => {
-        return pipe(
-            TaskEither.tryCatch(
-                () => collection.find(data as any).toArray(),
-                (error) => errorRespositoryResponse(error))
-        )
+    async update(id: string, item: Partial<T>): Promise<boolean>{
+        const result = await this.collection.updateOne(
+               { _id: new ObjectId(id) as any } ,
+                { $set: item }     
+        );
+        return result.modifiedCount > 0;
     }
 
-    const deleteOneItem = (id: ObjectId) => {
-        return pipe(
-            TaskEither.tryCatch(
-                () => collection.deleteOne({ _id: id } as any), // Not pretty sure about this solution
-                (error) => errorRespositoryResponse(error)
-            )
-        )
-
+    async findOne(id: string): Promise<WithId<T> | null> {
+        return this.collection.findOne({ _id: new ObjectId(id) } as any);
     }
 
-
-
-    return {
-        create,
-        findOneItem,
-        findItems,
-        deleteOneItem
-    }
 }
-
