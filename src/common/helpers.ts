@@ -1,3 +1,3 @@
-export function errorRespositoryResponse(error: unknown){
+export function errorResponse(error: unknown){
     return new Error(`${error}:`);
 }
